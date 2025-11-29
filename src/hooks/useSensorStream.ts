@@ -6,7 +6,7 @@ export type Sample = {
   t: number;
   brightness_pct: number;
   sound_db: number;
-  gas: string | number;
+  gas: string;
   distance_cm: number;
   accel_mag: number;
   quake_status: "IDLE" | "ALARM";
