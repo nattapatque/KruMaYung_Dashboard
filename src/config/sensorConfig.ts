@@ -1,13 +1,25 @@
 export const BRIGHTNESS = {
   toPct: (raw: number) => Math.max(0, Math.min(100, raw)),
   bands: [
-    { max: 20, label: "Dark", color: "bg-slate-800/80 text-slate-100" },
-    { max: 50, label: "Dim", color: "bg-slate-600/60 text-white" },
-    { max: 80, label: "Bright", color: "bg-yellow-300/40 text-yellow-900" },
+    {
+      max: 20,
+      label: "Dark",
+      color: "bg-emerald-950/80 text-emerald-50 border border-emerald-500/25",
+    },
+    {
+      max: 50,
+      label: "Cozy",
+      color: "bg-emerald-800/70 text-emerald-50 border border-emerald-400/30",
+    },
+    {
+      max: 80,
+      label: "Bright",
+      color: "bg-amber-200/80 text-amber-900 border border-amber-500/30",
+    },
     {
       max: 100,
       label: "Very Bright",
-      color: "bg-yellow-400/60 text-yellow-950",
+      color: "bg-amber-300/80 text-amber-900 border border-amber-600/30",
     },
   ],
   recommend(pct: number) {
@@ -20,9 +32,21 @@ export const BRIGHTNESS = {
 
 export const SOUND = {
   bands: [
-    { max: 60, label: "Quiet", color: "bg-emerald-200/60 text-emerald-900" },
-    { max: 80, label: "Moderate", color: "bg-amber-200/60 text-amber-900" },
-    { max: 1000, label: "Loud", color: "bg-rose-300/60 text-rose-950" },
+    {
+      max: 60,
+      label: "Quiet",
+      color: "bg-emerald-600/60 text-emerald-50 border border-emerald-300/30",
+    },
+    {
+      max: 80,
+      label: "Moderate",
+      color: "bg-amber-300/70 text-amber-900 border border-amber-500/30",
+    },
+    {
+      max: 1000,
+      label: "Loud",
+      color: "bg-rose-500/70 text-rose-50 border border-rose-200/40",
+    },
   ],
   recommend(db: number) {
     if (db < 60) return "Noise level is safe.";
@@ -33,9 +57,21 @@ export const SOUND = {
 
 export const ULTRA = {
   bands: [
-    { max: 2, label: "Very Close", color: "bg-rose-300/60 text-rose-950" },
-    { max: 25, label: "Near", color: "bg-amber-200/60 text-amber-900" },
-    { max: 50, label: "Far", color: "bg-emerald-200/60 text-emerald-900" },
+    {
+      max: 2,
+      label: "Very Close",
+      color: "bg-rose-500/70 text-rose-50 border border-rose-200/40",
+    },
+    {
+      max: 25,
+      label: "Near",
+      color: "bg-amber-400/70 text-amber-950 border border-amber-600/30",
+    },
+    {
+      max: 50,
+      label: "Far",
+      color: "bg-emerald-500/60 text-emerald-50 border border-emerald-300/40",
+    },
   ],
   recommend(cm: number) {
     if (cm < 2) return "Teacher hear!!!!!!!!!!";
@@ -49,12 +85,12 @@ export const GAS = {
     {
       value: "No gas",
       label: "No gas",
-      color: "bg-emerald-200/60 text-emerald-900",
+      color: "bg-emerald-500/50 text-emerald-50 border border-emerald-200/40",
     },
     {
       value: "Gas Detected!",
       label: "Gas Detected!",
-      color: "bg-rose-300/60 text-rose-950",
+      color: "bg-rose-600/70 text-rose-50 border border-rose-200/40",
     },
   ],
   recommend(val: string) {
@@ -65,8 +101,16 @@ export const GAS = {
 
 export const MPU6050 = {
   bands: [
-    { max: 1.1, label: "Idle", color: "bg-emerald-200/60 text-emerald-900" },
-    { max: 10, label: "ALARM", color: "bg-rose-300/60 text-rose-950" },
+    {
+      max: 1.1,
+      label: "Idle",
+      color: "bg-emerald-500/60 text-emerald-50 border border-emerald-300/40",
+    },
+    {
+      max: 10,
+      label: "ALARM",
+      color: "bg-rose-600/70 text-rose-50 border border-rose-200/40",
+    },
   ],
   recommend(accel_mag: number) {
     if (accel_mag <= 1.1) return "No significant movement.";

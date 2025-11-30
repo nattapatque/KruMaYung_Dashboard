@@ -17,21 +17,28 @@ export function DigitalCard({
   note?: string;
 }) {
   return (
-    <Card className={`shadow-sm border-0 ${bgColor} rounded-2xl`}>
+    <Card
+      className={`relative overflow-hidden shadow-sm border-0 ${bgColor} rounded-2xl`}
+    >
+      <div className="pointer-events-none absolute inset-0 opacity-50 bg-gradient-to-br from-white/10 via-transparent to-emerald-500/15" />
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2 opacity-90">
           {icon}
           {title}
         </CardTitle>
         {badge && (
-          <span className="text-xs px-2 py-1 rounded-full bg-black/10 dark:bg-white/10">
+          <span className="text-[11px] px-3 py-1 rounded-full bg-white/15 border border-white/25 uppercase tracking-[0.08em]">
             {badge}
           </span>
         )}
       </CardHeader>
       <CardContent>
-        <div className="text-2xl font-semibold tracking-tight">{value}</div>
-        {note && <p className="text-xs mt-2 opacity-90">{note}</p>}
+        <div className="text-3xl font-semibold tracking-tight text-white">
+          {value}
+        </div>
+        {note && (
+          <p className="text-xs mt-3 text-white/80 leading-relaxed">{note}</p>
+        )}
       </CardContent>
     </Card>
   );
