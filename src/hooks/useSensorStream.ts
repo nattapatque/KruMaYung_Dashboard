@@ -10,6 +10,9 @@ export type Sample = {
   distance_cm: number;
   accel_mag: number;
   quake_status: "IDLE" | "ALARM";
+  face_detected?: boolean;
+  face_last_seen_iso?: string;
+  face_last_seen_ts?: number;
   raw?: string;
 };
 
@@ -21,6 +24,21 @@ export function useSensorStream(deviceId: string, live = true) {
     if (!live || !deviceId) return;
 
     const dbRef = ref(database, `/devices/${deviceId}/telemetry`);
+
+    const parseFaceBool = (v: unknown) => {
+      if (typeof v === "boolean") return v;
+      if (typeof v === "number") return v > 0;
+      if (typeof v === "string") {
+        const normalized = v.trim().toLowerCase();
+        if (["true", "1", "yes", "y", "detected"].includes(normalized)) {
+          return true;
+        }
+        if (["false", "0", "no", "n", "clear"].includes(normalized)) {
+          return false;
+        }
+      }
+      return null;
+    };
 
     const unsub = onValue(
       dbRef,
@@ -77,6 +95,17 @@ export function useSensorStream(deviceId: string, live = true) {
                 : Number(rec?.distance_cm) || 0;
 
             const gas = rec?.gas ?? "";
+            const faceDetected = parseFaceBool(
+              rec?.face_detected ?? rec?.rpi?.face_detected
+            );
+
+            const lastSeenIsoRaw =
+              rec?.face_last_seen_iso ?? rec?.rpi?.face_last_seen_iso;
+            const face_last_seen_iso =
+              typeof lastSeenIsoRaw === "string" ? lastSeenIsoRaw : undefined;
+            const lastSeenTs = face_last_seen_iso
+              ? Date.parse(face_last_seen_iso)
+              : NaN;
 
             if (!Number.isFinite(t)) return null;
 
@@ -88,6 +117,11 @@ export function useSensorStream(deviceId: string, live = true) {
               distance_cm,
               accel_mag: accel,
               quake_status: Math.abs(accel - 1) > 0.5 ? "ALARM" : "IDLE",
+              face_detected: faceDetected ?? undefined,
+              face_last_seen_iso,
+              face_last_seen_ts: Number.isFinite(lastSeenTs)
+                ? lastSeenTs
+                : undefined,
               raw: typeof rec?.raw === "string" ? rec.raw : undefined,
             };
           })

@@ -134,11 +134,17 @@ export function bandColorForStr(
   bands: { value: string; label: string; color: string }[],
   v: string
 ) {
-  return bands.find((b) => b.value === v)?.color ?? "bg-slate-500";
+  const normalized = v?.toLowerCase?.().trim?.() ?? "";
+  const match = bands.find(
+    (b) => b.value?.toLowerCase?.().trim?.() === normalized
+  );
+  return match?.color ?? "bg-slate-500 text-white";
 }
 export function bandLabelForStr(
   bands: { value: string; label: string; color: string }[],
   v: string
 ) {
-  return bands.find((b) => b.value === v)?.label ?? "";
+  const normalized = v?.toLowerCase?.().trim?.() ?? "";
+  return bands.find((b) => b.value?.toLowerCase?.().trim?.() === normalized)
+    ?.label;
 }

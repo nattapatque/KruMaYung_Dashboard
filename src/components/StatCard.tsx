@@ -22,6 +22,7 @@ export function StatCard({
     <Card
       className={`relative overflow-hidden shadow-sm border-0 ${bgColor} rounded-2xl`}
     >
+      <div className={`absolute inset-x-0 top-0 h-1 ${bgColor}`} />
       <div className="pointer-events-none absolute inset-0 opacity-50 bg-gradient-to-br from-white/10 via-transparent to-emerald-500/15" />
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle className="text-sm font-medium flex items-center gap-2 opacity-90">

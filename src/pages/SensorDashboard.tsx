@@ -12,12 +12,14 @@ import {
   Gift,
   TreePine,
   Bell,
+  ScanFace,
 } from "lucide-react";
 import { motion } from "framer-motion";
 
 import { DigitalCard } from "../components/DigitalCard.tsx";
 import { StatCard } from "../components/StatCard";
 import Graph from "../components/Graph";
+import FaceDetectionLog from "../components/FaceDetectionLog";
 import { useSensorStream } from "../hooks/useSensorStream";
 import {
   BRIGHTNESS,
@@ -221,6 +223,26 @@ export default function SensorDashboard() {
 
         <section className="space-y-4">
           <div className="flex items-center gap-3">
+            <ScanFace className="h-4 w-4 text-amber-200" />
+            <div>
+              <p className="text-xs uppercase tracking-[0.14em] text-emerald-50/70">
+                Face detection trail
+              </p>
+              <h2 className="text-xl font-semibold">
+                Presence snapshots from the RPi feed
+              </h2>
+            </div>
+          </div>
+
+          <FaceDetectionLog
+            samples={rpiData}
+            latest={latestRpi}
+            sourcePath="/devices/rpi-cedt-node-01/telemetry"
+          />
+        </section>
+
+        <section className="space-y-4">
+          <div className="flex items-center gap-3">
             <Snowflake className="h-4 w-4 text-amber-200" />
             <div>
               <p className="text-xs uppercase tracking-[0.14em] text-emerald-50/70">
@@ -233,7 +255,9 @@ export default function SensorDashboard() {
           </div>
 
           <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
-            <div className="chart-card relative overflow-hidden rounded-2xl p-5">
+            <div
+              className={`chart-card relative overflow-hidden rounded-2xl p-5 ${brightnessColor} text-white`}
+            >
               <div className="pointer-events-none absolute right-6 top-4 h-12 w-12 rounded-full bg-amber-300/20 blur-xl" />
               <h3 className="mb-3 text-lg font-medium text-white">
                 Brightness
@@ -246,7 +270,9 @@ export default function SensorDashboard() {
                 backgroundColor="rgba(255, 205, 86, 0.35)"
               />
             </div>
-            <div className="chart-card relative overflow-hidden rounded-2xl p-5">
+            <div
+              className={`chart-card relative overflow-hidden rounded-2xl p-5 ${soundColor} text-white`}
+            >
               <div className="pointer-events-none absolute right-6 top-4 h-12 w-12 rounded-full bg-amber-300/20 blur-xl" />
               <h3 className="mb-3 text-lg font-medium text-white">
                 Sound Level
@@ -259,7 +285,9 @@ export default function SensorDashboard() {
                 backgroundColor="rgba(75, 192, 192, 0.35)"
               />
             </div>
-            <div className="chart-card relative overflow-hidden rounded-2xl p-5">
+            <div
+              className={`chart-card relative overflow-hidden rounded-2xl p-5 ${ultraColor} text-white`}
+            >
               <div className="pointer-events-none absolute right-6 top-4 h-12 w-12 rounded-full bg-amber-300/20 blur-xl" />
               <h3 className="mb-3 text-lg font-medium text-white">
                 Ultrasonic Distance
@@ -272,7 +300,9 @@ export default function SensorDashboard() {
                 backgroundColor="rgba(255, 99, 132, 0.35)"
               />
             </div>
-            <div className="chart-card relative overflow-hidden rounded-2xl p-5">
+            <div
+              className={`chart-card relative overflow-hidden rounded-2xl p-5 ${mpuColor} text-white`}
+            >
               <div className="pointer-events-none absolute right-6 top-4 h-12 w-12 rounded-full bg-amber-300/20 blur-xl" />
               <h3 className="mb-3 text-lg font-medium text-white">
                 Acceleration
