@@ -112,10 +112,10 @@ const Graph = ({
           onChange={(e) => setFilter(e.target.value)}
           className="px-3 py-2 rounded-full bg-white/10 border border-white/20 text-white text-xs shadow-inner focus:outline-none focus:ring-2 focus:ring-amber-200/60"
         >
-          <option value="100">Last 100 data points</option>
-          <option value="200">Last 200 data points</option>
-          <option value="300">Last 300 data points</option>
-          <option value="all">All data</option>
+          <option value="100" className="bg-[#0c1b13]">Last 100 data points</option>
+          <option value="200" className="bg-[#0c1b13]">Last 200 data points</option>
+          <option value="300" className="bg-[#0c1b13]">Last 300 data points</option>
+          <option value="all" className="bg-[#0c1b13]">All data</option>
         </select>
       </div>
       <div className="h-64">

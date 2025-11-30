@@ -61,8 +61,8 @@ export default function SensorDashboard() {
   );
 
   const garland = Array.from({ length: 18 }, (_, idx) =>
-    ["bg-emerald-300", "bg-amber-300", "bg-rose-300", "bg-teal-200", "bg-emerald-200"][
-      idx % 5
+    ["bg-white", "bg-red-500"][
+      idx % 2
     ]
   );
 
@@ -85,11 +85,11 @@ export default function SensorDashboard() {
                 <div className="flex items-center gap-3">
                   <TreePine className="h-9 w-9 text-emerald-200" />
                   <h1 className="text-3xl font-bold leading-tight md:text-4xl">
-                    Merry & Bright Sensor Watch
+                    KruMaYung Dashboard
                   </h1>
                 </div>
                 <p className="max-w-2xl text-sm text-emerald-50/80 md:text-base">
-                  Keep the lab cozy and safe with live IoT telemetry wrapped in a
+                  Keep the classroom cozy and safe with live IoT telemetry wrapped in a
                   winter glow. Monitor everything in one tidy view.
                 </p>
               </div>
@@ -153,7 +153,7 @@ export default function SensorDashboard() {
                 title="Brightness"
                 icon={<Sun className="h-4 w-4" />}
                 value={brightnessPct.toFixed(1)}
-                unit="%"
+                unit="lux"
                 badge={bandLabel(BRIGHTNESS.bands, brightnessPct)}
                 bgColor={brightnessColor}
                 note={brightnessNote}
@@ -260,12 +260,12 @@ export default function SensorDashboard() {
             >
               <div className="pointer-events-none absolute right-6 top-4 h-12 w-12 rounded-full bg-amber-300/20 blur-xl" />
               <h3 className="mb-3 text-lg font-medium text-white">
-                Brightness
+                Brightness (lux)
               </h3>
               <Graph
                 data={espData}
                 dataKey="brightness_pct"
-                label="Brightness (%)"
+                label="Brightness (lux)"
                 borderColor="rgb(255, 205, 86)"
                 backgroundColor="rgba(255, 205, 86, 0.35)"
               />
@@ -275,7 +275,7 @@ export default function SensorDashboard() {
             >
               <div className="pointer-events-none absolute right-6 top-4 h-12 w-12 rounded-full bg-amber-300/20 blur-xl" />
               <h3 className="mb-3 text-lg font-medium text-white">
-                Sound Level
+                Sound Level (dB)
               </h3>
               <Graph
                 data={espData}
@@ -290,7 +290,7 @@ export default function SensorDashboard() {
             >
               <div className="pointer-events-none absolute right-6 top-4 h-12 w-12 rounded-full bg-amber-300/20 blur-xl" />
               <h3 className="mb-3 text-lg font-medium text-white">
-                Ultrasonic Distance
+                Ultrasonic Distance (cm)
               </h3>
               <Graph
                 data={rpiData}
@@ -305,7 +305,7 @@ export default function SensorDashboard() {
             >
               <div className="pointer-events-none absolute right-6 top-4 h-12 w-12 rounded-full bg-amber-300/20 blur-xl" />
               <h3 className="mb-3 text-lg font-medium text-white">
-                Acceleration
+                Acceleration (g)
               </h3>
               <Graph
                 data={rpiData}
