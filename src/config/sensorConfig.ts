@@ -1,31 +1,30 @@
 export const BRIGHTNESS = {
-  toPct: (raw: number) => Math.max(0, Math.min(100, raw)),
   bands: [
     {
-      max: 20,
+      max: 300,
       label: "Dark",
       color: "bg-emerald-950/80 text-emerald-50 border border-emerald-500/25",
     },
     {
-      max: 50,
+      max: 500,
       label: "Cozy",
       color: "bg-emerald-800/70 text-emerald-50 border border-emerald-400/30",
     },
     {
-      max: 80,
+      max: 1000,
       label: "Bright",
       color: "bg-amber-200/80 text-amber-900 border border-amber-500/30",
     },
     {
-      max: 100,
+      max: 2000,
       label: "Very Bright",
       color: "bg-amber-300/80 text-amber-900 border border-amber-600/30",
     },
   ],
   recommend(pct: number) {
-    if (pct < 20) return "Too dark — consider turning on lights.";
-    if (pct < 50) return "Comfortable ambient light.";
-    if (pct < 80) return "Well lit for work/reading.";
+    if (pct < 300) return "Too dark — consider turning on lights.";
+    if (pct < 500) return "Comfortable ambient light.";
+    if (pct < 1000) return "Well lit for work/reading.";
     return "Extremely bright — reduce glare if needed.";
   },
 };
