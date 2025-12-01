@@ -11,9 +11,26 @@ export type Sample = {
   accel_mag: number;
   quake_status: "IDLE" | "ALARM";
   face_detected?: boolean;
+  known_face?: boolean;
+  faces_count?: number;
+  recognized_faces?: RecognizedFace[];
   face_last_seen_iso?: string;
   face_last_seen_ts?: number;
   raw?: string;
+};
+
+export type FaceBBox = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
+export type RecognizedFace = {
+  label: string;
+  similarity?: number;
+  known?: boolean;
+  bbox?: FaceBBox;
 };
 
 export function useSensorStream(deviceId: string, live = true) {
@@ -38,6 +55,51 @@ export function useSensorStream(deviceId: string, live = true) {
         }
       }
       return null;
+    };
+
+    const parseNumber = (v: unknown) => {
+      const n = typeof v === "number" ? v : Number(v);
+      return Number.isFinite(n) ? n : undefined;
+    };
+
+    const parseRecognizedFaces = (
+      raw: unknown
+    ): RecognizedFace[] | undefined => {
+      if (!Array.isArray(raw)) return undefined;
+      const parsed = raw
+        .map((entry) => {
+          if (!entry || typeof entry !== "object") return null;
+          const face = entry as Record<string, unknown>;
+          const bboxRaw = face.bbox as Record<string, unknown> | undefined;
+          const bboxCandidate = {
+            x: parseNumber(bboxRaw?.x),
+            y: parseNumber(bboxRaw?.y),
+            w: parseNumber(bboxRaw?.w),
+            h: parseNumber(bboxRaw?.h),
+          };
+          const hasBBox = Object.values(bboxCandidate).every(
+            (v) => typeof v === "number"
+          );
+          const label =
+            typeof face.label === "string" ? face.label : "unknown";
+          const similarity = parseNumber(face.similarity);
+          const known =
+            typeof face.known === "boolean"
+              ? face.known
+              : label.toLowerCase() !== "unknown"
+              ? true
+              : undefined;
+
+          return {
+            label,
+            similarity,
+            known,
+            ...(hasBBox ? { bbox: bboxCandidate as FaceBBox } : {}),
+          } as RecognizedFace;
+        })
+        .filter(Boolean) as RecognizedFace[];
+
+      return parsed.length ? parsed : undefined;
     };
 
     const unsub = onValue(
@@ -98,6 +160,16 @@ export function useSensorStream(deviceId: string, live = true) {
             const faceDetected = parseFaceBool(
               rec?.face_detected ?? rec?.rpi?.face_detected
             );
+            const knownFace = parseFaceBool(
+              rec?.known_face ?? rec?.rpi?.known_face
+            );
+
+            const faces_count = parseNumber(
+              rec?.faces_count ?? rec?.rpi?.faces_count
+            );
+            const recognized_faces = parseRecognizedFaces(
+              rec?.recognized_faces ?? rec?.rpi?.recognized_faces
+            );
 
             const lastSeenIsoRaw =
               rec?.face_last_seen_iso ?? rec?.rpi?.face_last_seen_iso;
@@ -118,6 +190,9 @@ export function useSensorStream(deviceId: string, live = true) {
               accel_mag: accel,
               quake_status: Math.abs(accel - 1) > 0.5 ? "ALARM" : "IDLE",
               face_detected: faceDetected ?? undefined,
+              known_face: knownFace ?? undefined,
+              faces_count,
+              recognized_faces,
               face_last_seen_iso,
               face_last_seen_ts: Number.isFinite(lastSeenTs)
                 ? lastSeenTs
