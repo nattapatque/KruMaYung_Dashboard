@@ -11,7 +11,11 @@ import {
   UserX,
   Users,
 } from "lucide-react";
-import type { RecognizedFace, Sample } from "../hooks/useSensorStream";
+import type {
+  FaceStatus,
+  RecognizedFace,
+  Sample,
+} from "../hooks/useSensorStream";
 import { Card, CardContent, CardHeader, CardTitle } from "./ui/card";
 
 type FaceDetectionLogProps = {
@@ -34,13 +38,20 @@ function formatRelative(ts?: number) {
   return `${days}d ago`;
 }
 
+const bangkokTime = new Intl.DateTimeFormat("en-US", {
+  timeZone: "Asia/Bangkok",
+  year: "numeric",
+  month: "short",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
+
 function formatClock(ts?: number) {
   if (!ts || Number.isNaN(ts)) return "—";
-  return new Date(ts).toLocaleTimeString([], {
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  });
+  return `${bangkokTime.format(ts)} GMT+7`;
 }
 
 function formatDuration(ms?: number) {
@@ -65,6 +76,30 @@ function formatBBox(face?: RecognizedFace) {
   return `bbox x:${bbox.x} y:${bbox.y} w:${bbox.w} h:${bbox.h}`;
 }
 
+function resolveStatus(sample?: Sample | null): FaceStatus | undefined {
+  if (!sample) return undefined;
+  if (
+    sample.face_status === "face_detected" ||
+    sample.face_status === "clear"
+  ) {
+    return sample.face_status;
+  }
+  if (typeof sample.face_detected === "boolean") {
+    return sample.face_detected ? "face_detected" : "clear";
+  }
+  if (typeof sample.known_face === "boolean") {
+    return sample.known_face ? "face_detected" : undefined;
+  }
+  return undefined;
+}
+
+function resolveKnown(sample?: Sample | null): boolean | undefined {
+  if (!sample) return undefined;
+  if (typeof sample.known_face === "boolean") return sample.known_face;
+  if (sample.recognized_faces?.some((f) => f.known)) return true;
+  return undefined;
+}
+
 export function FaceDetectionLog({
   samples,
   latest,
@@ -72,92 +107,74 @@ export function FaceDetectionLog({
 }: FaceDetectionLogProps) {
   const faceSamples = samples.filter(
     (s) =>
+      typeof s.face_status === "string" ||
       typeof s.face_detected === "boolean" ||
       typeof s.known_face === "boolean" ||
       typeof s.faces_count === "number" ||
       Array.isArray(s.recognized_faces) ||
-      typeof s.face_last_seen_ts === "number"
+      typeof s.face_last_seen_ts === "number" ||
+      typeof s.face_last_seen_iso === "string"
   );
   const latestWithFace =
     faceSamples.length > 0 ? faceSamples[faceSamples.length - 1] : null;
 
+  const latestStatus =
+    resolveStatus(latest) ?? resolveStatus(latestWithFace);
+
+  const latestKnown =
+    resolveKnown(latest) ?? resolveKnown(latestWithFace);
+
+  const latestRecognitionSnapshot =
+    (latest?.recognized_faces?.length ? latest : null) ??
+    faceSamples
+      .slice()
+      .reverse()
+      .find((s) => (s.recognized_faces?.length ?? 0) > 0) ??
+    null;
+
   const latestRecognitions: RecognizedFace[] =
-    latest?.recognized_faces ??
-    latestWithFace?.recognized_faces ??
-    [];
+    latestRecognitionSnapshot?.recognized_faces ?? [];
 
   const facesCount =
     typeof latest?.faces_count === "number"
       ? latest.faces_count
       : typeof latestWithFace?.faces_count === "number"
       ? latestWithFace.faces_count
-      : latestRecognitions.length
-      ? latestRecognitions.length
-      : undefined;
-
-  const knownFacePresent = (() => {
-    if (typeof latest?.face_detected === "boolean") return latest.face_detected;
-    if (typeof latest?.known_face === "boolean") return latest.known_face;
-    if (typeof latestWithFace?.face_detected === "boolean")
-      return latestWithFace.face_detected;
-    if (typeof latestWithFace?.known_face === "boolean")
-      return latestWithFace.known_face;
-    return latestRecognitions.some((f) => f.known);
-  })();
-
-  const anyFacePresent =
-    typeof facesCount === "number"
-      ? facesCount > 0
-      : latestRecognitions.length > 0 ||
-        faceSamples.some((s) => (s.faces_count ?? 0) > 0);
+      : typeof latestRecognitionSnapshot?.faces_count === "number"
+      ? latestRecognitionSnapshot.faces_count
+      : latestRecognitions.length || undefined;
 
   const lastKnownSnapshot =
     [...faceSamples].reverse().find(
       (s) =>
-        s.face_detected ||
         s.known_face ||
         s.face_last_seen_iso ||
         s.recognized_faces?.some((f) => f.known)
     ) ?? null;
 
   const lastKnownIso = lastKnownSnapshot?.face_last_seen_iso;
-  const lastKnownTs =
-    lastKnownSnapshot?.face_last_seen_ts ??
-    (lastKnownIso ? Date.parse(lastKnownIso) : lastKnownSnapshot?.t);
   const lastKnownLabel =
     lastKnownSnapshot?.recognized_faces?.find((f) => f.known)?.label;
 
-  const latestFrameTs = latest?.t ?? latestWithFace?.t;
+  const latestFrameTs =
+    latest?.t ?? latestWithFace?.t ?? latestRecognitionSnapshot?.t;
 
   const windowStart = Date.now() - 15 * 60 * 1000;
   const windowSamples = faceSamples.filter((s) => s.t >= windowStart);
   const seenInWindow = windowSamples.filter(
-    (s) =>
-      (s.faces_count ?? 0) > 0 ||
-      s.recognized_faces?.length ||
-      s.face_detected ||
-      s.known_face
+    (s) => resolveStatus(s) === "face_detected"
   ).length;
   const presencePct = windowSamples.length
     ? Math.round((seenInWindow / windowSamples.length) * 100)
     : 0;
 
   const streakMs = (() => {
-    if (!faceSamples.length || typeof knownFacePresent !== "boolean")
-      return undefined;
+    if (!faceSamples.length || !latestStatus) return undefined;
     let lastChangeTs: number | undefined;
     for (let i = faceSamples.length - 1; i >= 0; i--) {
-      const s = faceSamples[i];
-      const state =
-        typeof s.face_detected === "boolean"
-          ? s.face_detected
-          : typeof s.known_face === "boolean"
-          ? s.known_face
-          : s.recognized_faces?.some((f) => f.known)
-          ? true
-          : null;
-      if (state !== null && state !== knownFacePresent) {
-        lastChangeTs = faceSamples[i + 1]?.t ?? s.t;
+      const status = resolveStatus(faceSamples[i]);
+      if (status && status !== latestStatus) {
+        lastChangeTs = faceSamples[i + 1]?.t ?? faceSamples[i].t;
         break;
       }
     }
@@ -165,33 +182,146 @@ export function FaceDetectionLog({
     return Date.now() - lastChangeTs;
   })();
 
-  const timeline = faceSamples.slice(-12).reverse();
+  const todayStart = (() => {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d.getTime();
+  })();
 
-  const latestKnownCount = latestRecognitions.filter(
-    (f) => f.known !== false && f.label.toLowerCase() !== "unknown"
-  ).length;
-  const latestUnknownCount = latestRecognitions.filter(
-    (f) => f.known === false || f.label.toLowerCase() === "unknown"
-  ).length;
+  let knownDetectionsToday = 0;
+  let unknownDetectionsToday = 0;
+  let prevStatusToday: FaceStatus | undefined;
+  faceSamples
+    .filter((s) => s.t >= todayStart)
+    .forEach((s) => {
+      const status = resolveStatus(s);
+      const known = resolveKnown(s);
+      if (status === "face_detected" && prevStatusToday !== "face_detected") {
+        if (known === true) knownDetectionsToday += 1;
+        else unknownDetectionsToday += 1;
+      }
+      if (status) prevStatusToday = status;
+    });
 
-  const stateBadge =
-    knownFacePresent === true
+  type TimelineEvent = {
+    ts: number;
+    status?: FaceStatus;
+    known?: boolean;
+    faces?: number;
+    recognized_faces?: RecognizedFace[];
+    face_last_seen_iso?: string;
+  };
+
+  const timelineEvents: TimelineEvent[] = [];
+  let prevStatus: FaceStatus | undefined;
+  let prevKnown: boolean | undefined;
+  for (const s of faceSamples) {
+    const status = resolveStatus(s);
+    const known = resolveKnown(s);
+    const changed =
+      (status && status !== prevStatus) ||
+      (typeof known === "boolean" && known !== prevKnown);
+
+    if (changed) {
+      timelineEvents.push({
+        ts: s.t,
+        status,
+        known,
+        faces:
+          typeof s.faces_count === "number"
+            ? s.faces_count
+            : s.recognized_faces?.length,
+        recognized_faces: s.recognized_faces,
+        face_last_seen_iso: s.face_last_seen_iso,
+      });
+    }
+
+    if (status) prevStatus = status;
+    if (typeof known === "boolean") prevKnown = known;
+  }
+
+  const timeline = timelineEvents.slice(-14).reverse();
+
+  const statusBadge =
+    latestStatus === "face_detected"
+      ? latestKnown
+        ? {
+            label: "Known face confirmed",
+            tone:
+              "bg-emerald-300/80 text-emerald-950 border border-emerald-50/80 shadow-[0_10px_45px_-22px_rgba(16,185,129,0.8)]",
+            sub: "Debounced lock from the Pi",
+          }
+        : {
+            label: "Face detected (awaiting ID)",
+            tone:
+              "bg-amber-500/70 text-amber-50 border border-amber-200/40 shadow-[0_10px_45px_-22px_rgba(251,191,36,0.7)]",
+            sub: "Any-face signal is debounced",
+          }
+      : latestStatus === "clear"
       ? {
-          label: "Known face detected",
-          color:
-            "bg-rose-500/80 text-rose-50 border border-rose-200/40 shadow-[0_10px_45px_-22px_rgba(255,87,120,0.9)]",
-        }
-      : anyFacePresent
-      ? {
-          label: "Faces present (unknown)",
-          color:
-            "bg-amber-500/70 text-amber-50 border border-amber-200/40 shadow-[0_10px_45px_-22px_rgba(251,191,36,0.7)]",
+          label: "No face in view",
+          tone:
+            "bg-white/10 text-white border border-white/20 shadow-[0_10px_45px_-22px_rgba(255,255,255,0.35)]",
+          sub: "Debounced clear",
         }
       : {
           label: "Waiting for face data",
-          color:
+          tone:
             "bg-white/10 text-white border border-white/20 shadow-[0_10px_45px_-22px_rgba(255,255,255,0.35)]",
+          sub: "Listening for the next snapshot",
         };
+
+  const statusChangeKey = `${latestStatus ?? "unknown"}-${
+    latest?.t ?? latestWithFace?.t ?? "na"
+  }`;
+
+  const activeKnown = latestKnown === true;
+  const showUnknownAlert =
+    latestStatus === "face_detected" && latestKnown === false;
+  const unknownAlertTs = latestFrameTs;
+
+  const identitySnapshot =
+    (latest?.known_face ? latest : null) ??
+    (latestWithFace?.known_face ? latestWithFace : null) ??
+    lastKnownSnapshot ??
+    latestRecognitionSnapshot ??
+    null;
+
+  const identityFaces = identitySnapshot?.recognized_faces ?? [];
+  const identityLastSeenIso =
+    identitySnapshot?.face_last_seen_iso ?? lastKnownIso;
+  const parsedIdentityTs =
+    identityLastSeenIso && Number.isFinite(Date.parse(identityLastSeenIso))
+      ? Date.parse(identityLastSeenIso)
+      : undefined;
+  const identityLastSeenTs =
+    identitySnapshot?.face_last_seen_ts ??
+    parsedIdentityTs ??
+    identitySnapshot?.t;
+  const identityState =
+    activeKnown ? "active" : identitySnapshot ? "recent" : "none";
+
+  const faceDetectedFlag =
+    typeof latest?.face_detected === "boolean"
+      ? latest.face_detected
+      : typeof latestWithFace?.face_detected === "boolean"
+      ? latestWithFace.face_detected
+      : undefined;
+
+  const knownFaceFlag =
+    typeof latest?.known_face === "boolean"
+      ? latest.known_face
+      : typeof latestWithFace?.known_face === "boolean"
+      ? latestWithFace.known_face
+      : undefined;
+
+  const knownFacesList = identityFaces.filter(
+    (f) => f.known !== false && f.label.toLowerCase() !== "unknown"
+  );
+  const unknownFacesList = identityFaces.filter(
+    (f) => f.known === false || f.label.toLowerCase() === "unknown"
+  );
+  const recognitionTimestamp = identitySnapshot?.t ?? latestFrameTs;
 
   const sourceLabel = sourcePath ?? "/devices/rpi-cedt-node-01/telemetry";
 
@@ -214,68 +344,109 @@ export function FaceDetectionLog({
             </CardTitle>
           </div>
         </div>
-        <div
-          className={`px-4 py-2 rounded-full text-xs font-semibold uppercase tracking-[0.08em] ${stateBadge.color}`}
+        <motion.div
+          key={statusChangeKey}
+          initial={{ scale: 0.96, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 180, damping: 18 }}
+          className={`px-4 py-2 rounded-2xl text-xs font-semibold uppercase tracking-[0.08em] ${statusBadge.tone}`}
         >
-          {stateBadge.label}
-        </div>
+          <div className="flex items-center gap-2">
+            <span>{statusBadge.label}</span>
+            <span className="h-1.5 w-1.5 rounded-full bg-white/90 shadow-[0_0_0_6px_rgba(255,255,255,0.15)] animate-pulse" />
+          </div>
+          <p className="mt-0.5 text-[10px] font-normal normal-case text-white/80">
+            {statusBadge.sub}
+          </p>
+        </motion.div>
       </CardHeader>
       <CardContent className="relative space-y-5">
+        {showUnknownAlert && (
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="flex items-start gap-3 rounded-2xl border border-amber-200/30 bg-amber-500/15 px-4 py-3 text-amber-50 shadow-[0_10px_40px_-20px_rgba(245,158,11,0.35)]"
+          >
+            <AlertTriangle className="mt-0.5 h-5 w-5 text-amber-200" />
+            <div className="space-y-0.5">
+              <p className="text-sm font-semibold">Unknown face detected</p>
+              <p className="text-xs text-amber-50/80">
+                Waiting for the known-face threshold to trip.{" "}
+                {unknownAlertTs ? `Last frame ${formatClock(unknownAlertTs)}.` : ""}
+              </p>
+            </div>
+          </motion.div>
+        )}
         <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner shadow-emerald-950/30">
             <div className="flex items-center gap-2 text-sm text-white/80">
               <Radar className="h-4 w-4 text-amber-200" />
-              Live presence
+              Face status (debounced)
             </div>
             <div className="mt-2 text-2xl font-semibold text-white">
-              {knownFacePresent === true
-                ? "Known face spotted"
-                : anyFacePresent
-                ? "Faces visible (unlabeled)"
-                : "No faces in the current frame"}
+              {latestStatus === "face_detected"
+                ? activeKnown
+                  ? "Known face locked after threshold"
+                  : "Face detected, gating identity"
+                : latestStatus === "clear"
+                ? "No face in the frame"
+                : "Waiting for face telemetry"}
             </div>
             <p className="mt-2 text-xs text-white/60">
-              Latest frame has{" "}
-              {typeof facesCount === "number"
-                ? `${facesCount} face${facesCount === 1 ? "" : "s"}`
-                : "no face count yet"}
-              , streamed from{" "}
+              face_status:{" "}
               <code className="rounded bg-black/20 px-1.5 py-0.5 text-[11px]">
-                {sourceLabel}
-              </code>
+                {latestStatus ?? "—"}
+              </code>{" "}
+              · face_detected:{" "}
+              {typeof faceDetectedFlag === "boolean" ? String(faceDetectedFlag) : "—"} ·
+              known_face: {typeof knownFaceFlag === "boolean" ? String(knownFaceFlag) : "—"}
+              <span className="ml-2 inline-flex items-center gap-1 rounded-full border border-white/15 bg-white/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.08em] text-white/70">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-200 animate-pulse" />
+                Debounced
+              </span>
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner shadow-emerald-950/30">
             <div className="flex items-center gap-2 text-sm text-white/80">
               <Clock3 className="h-4 w-4 text-amber-200" />
-              Last known face
+              Last confirmed identity
             </div>
             <div className="mt-2 text-2xl font-semibold text-white">
-              {lastKnownTs ? formatRelative(lastKnownTs) : "No known face yet"}
+              {identityState !== "none"
+                ? identityLastSeenTs
+                  ? formatRelative(identityLastSeenTs)
+                  : "Timestamp pending"
+                : "No known face yet"}
             </div>
             <p className="mt-1 text-xs text-white/60">
-              Label: {lastKnownLabel ?? "—"}
+              Label: {identityFaces[0]?.label ?? lastKnownLabel ?? "—"}
             </p>
             <p className="mt-1 text-xs text-white/60">
-              Timestamp:{" "}
-              {lastKnownIso
-                ? lastKnownIso
-                : lastKnownTs
-                ? formatClock(lastKnownTs)
-                : "—"}
+              Last seen: {identityLastSeenIso ?? "—"}
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 p-4 shadow-inner shadow-emerald-950/30">
             <div className="flex items-center gap-2 text-sm text-white/80">
               <History className="h-4 w-4 text-amber-200" />
-              Activity streak
+              Activity & today
             </div>
             <div className="mt-2 text-2xl font-semibold text-white">
               {streakMs ? formatDuration(streakMs) : "—"}
             </div>
             <p className="mt-1 text-xs text-white/60">
-              {presencePct}% face presence across the last 15 minutes window.
+              {presencePct}% face_status=detected across the last 15 minutes window.
             </p>
+            <div className="mt-2 flex flex-wrap gap-2 text-[11px] text-white/80">
+              <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1">
+                Known detections today: {knownDetectionsToday}
+              </span>
+              <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1">
+                Unknown detections today: {unknownDetectionsToday}
+              </span>
+              <span className="rounded-full border border-white/15 bg-white/10 px-2.5 py-1">
+                Stream: {sourceLabel}
+              </span>
+            </div>
           </div>
         </div>
 
@@ -284,34 +455,50 @@ export function FaceDetectionLog({
             <div className="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.12em] text-white/70">
               <span className="inline-flex items-center gap-2">
                 <span className="h-2 w-2 rounded-full bg-amber-300 shadow-[0_0_0_6px_rgba(240,199,94,0.12)]" />
-                Latest recognition frame
+                Identity panel
               </span>
               <span className="rounded-full border border-white/10 px-3 py-1 text-[11px]">
-                {latestFrameTs ? formatClock(latestFrameTs) : "Waiting..."}
+                {recognitionTimestamp
+                  ? formatClock(recognitionTimestamp)
+                  : "Waiting..."}
               </span>
             </div>
 
             <div className="mb-3 flex flex-wrap items-center gap-2 text-xs text-white/70">
               <span className="rounded-full border border-white/10 px-3 py-1">
-                Known: {latestKnownCount}
+                known_face:{" "}
+                {typeof knownFaceFlag === "boolean" ? String(knownFaceFlag) : "—"}
               </span>
               <span className="rounded-full border border-white/10 px-3 py-1">
-                Unknown: {latestUnknownCount}
+                face_status: {latestStatus ?? "—"}
               </span>
               <span className="rounded-full border border-white/10 px-3 py-1">
-                From {sourceLabel}
+                face_last_seen_iso: {identityLastSeenIso ?? "—"}
               </span>
+              <span className="rounded-full border border-white/10 px-3 py-1">
+                faces_count: {typeof facesCount === "number" ? facesCount : "—"}
+              </span>
+              <span className="rounded-full border border-white/10 px-3 py-1">
+                recognized_faces: {identityFaces.length}
+              </span>
+              {identityFaces.length > 0 && (
+                <span className="rounded-full border border-white/10 px-3 py-1">
+                  known labels: {knownFacesList.length} · unknown tags: {unknownFacesList.length}
+                </span>
+              )}
             </div>
 
-            {latestRecognitions.length === 0 ? (
+            {identityFaces.length === 0 ? (
               <div className="flex items-center justify-center rounded-xl border border-white/10 bg-black/10 px-3 py-10 text-sm text-white/60">
-                Waiting for recognized_faces payload to arrive…
+                {activeKnown
+                  ? "Waiting for recognized_faces payload (debounced from the Pi)…"
+                  : "No confirmed identity right now. Names will appear once known_face flips true."}
               </div>
             ) : (
               <div className="grid gap-3 md:grid-cols-2">
-                {latestRecognitions.map((face, idx) => {
+                {identityFaces.map((face, idx) => {
                   const badgeColor = face.known
-                    ? "bg-rose-500/80 text-rose-50 border border-rose-200/40"
+                    ? "bg-emerald-300/80 text-emerald-950 border border-emerald-100/80"
                     : "bg-emerald-500/60 text-emerald-50 border border-emerald-200/40";
                   const bboxText = formatBBox(face);
                   return (
@@ -352,6 +539,11 @@ export function FaceDetectionLog({
                           <Fingerprint className="h-3 w-3 text-amber-200" />
                           label: {face.label}
                         </span>
+                        {typeof face.similarity === "number" ? (
+                          <span className="rounded-full border border-white/10 px-2 py-0.5">
+                            similarity: {formatSimilarity(face.similarity)}
+                          </span>
+                        ) : null}
                       </div>
                     </motion.div>
                   );
@@ -363,11 +555,11 @@ export function FaceDetectionLog({
           <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-black/20 via-emerald-950/40 to-black/30 p-4">
             <div className="mb-3 flex items-center justify-between text-xs uppercase tracking-[0.12em] text-white/70">
               <span className="inline-flex items-center gap-2">
-                <span className="h-2 w-2 rounded-full bg-rose-300 shadow-[0_0_0_6px_rgba(244,114,182,0.12)]" />
+                <span className="h-2 w-2 rounded-full bg-emerald-300 shadow-[0_0_0_6px_rgba(52,211,153,0.12)]" />
                 Snapshot trail
               </span>
               <span className="rounded-full border border-white/10 px-3 py-1 text-[11px]">
-                Last {timeline.length || 0} frames with face payload
+                Last {timeline.length || 0} status flips
               </span>
             </div>
             <div className="space-y-3 max-h-96 overflow-auto pr-1">
@@ -378,28 +570,27 @@ export function FaceDetectionLog({
               ) : (
                 timeline.map((entry, idx) => {
                   const entryFaces = entry.recognized_faces ?? [];
-                  const entryKnown = entryFaces.filter(
+                  const entryKnownFaces = entryFaces.filter(
                     (f) => f.known !== false && f.label.toLowerCase() !== "unknown"
                   );
-                  const entryUnknown = entryFaces.filter(
+                  const entryUnknownFaces = entryFaces.filter(
                     (f) => f.known === false || f.label.toLowerCase() === "unknown"
                   );
                   const entryCount =
-                    typeof entry.faces_count === "number"
-                      ? entry.faces_count
-                      : entryFaces.length;
-                  const knownBadge =
-                    entry.face_detected ??
-                    entry.known_face ??
-                    entryKnown.length > 0;
-                  const badge = knownBadge
-                    ? "bg-rose-500/80 text-rose-50 border border-rose-200/40"
-                    : entryCount > 0
+                    typeof entry.faces === "number" ? entry.faces : entryFaces.length;
+                  const badge = entry.known
+                    ? "bg-emerald-300/80 text-emerald-950 border border-emerald-100/80"
+                    : entry.status === "face_detected"
                     ? "bg-amber-500/60 text-amber-50 border border-amber-200/40"
                     : "bg-white/10 text-white border border-white/20";
+                  const statusLabel = entry.known
+                    ? "Known face"
+                    : entry.status === "face_detected"
+                    ? "Face detected"
+                    : "Clear";
                   return (
                     <motion.div
-                      key={`${entry.t}-${idx}`}
+                      key={`${entry.ts}-${idx}`}
                       initial={{ opacity: 0, y: 8 }}
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: idx * 0.02 }}
@@ -412,41 +603,42 @@ export function FaceDetectionLog({
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-2">
                             <span className={`rounded-full px-3 py-1 text-[11px] uppercase tracking-[0.08em] ${badge}`}>
-                              {knownBadge
-                                ? "Known face"
-                                : entryCount > 0
-                                ? "Unknown only"
-                                : "Clear"}
+                              {statusLabel}
                             </span>
                             <span className="text-[11px] text-white/70">
-                              {entryCount} face{entryCount === 1 ? "" : "s"}
+                              {entryCount ?? 0} face{entryCount === 1 ? "" : "s"}
                             </span>
                           </div>
                           <span className="text-xs text-white/60">
-                            {formatClock(entry.t)}
+                            {formatClock(entry.ts)}
                           </span>
                         </div>
                         <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-white/70">
-                          {entryKnown.length ? (
-                            entryKnown.map((f, i) => (
+                          {entryKnownFaces.length ? (
+                            entryKnownFaces.map((f, i) => (
                               <span
                                 key={`${f.label}-${i}`}
                                 className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5"
                               >
-                                <UserCheck className="h-3 w-3 text-rose-200" />
+                                <UserCheck className="h-3 w-3 text-emerald-200" />
                                 {f.label}
                               </span>
                             ))
-                          ) : entryCount > 0 ? (
+                          ) : entry.known ? (
+                            <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5">
+                              <UserCheck className="h-3 w-3 text-emerald-200" />
+                              Known face confirmed
+                            </span>
+                          ) : entry.status === "face_detected" ? (
                             <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5">
                               <UserX className="h-3 w-3 text-amber-200" />
-                              No known labels in this frame
+                              Waiting for known_face confirmation
                             </span>
                           ) : null}
-                          {entryUnknown.length > 0 && (
+                          {entryUnknownFaces.length > 0 && (
                             <span className="inline-flex items-center gap-1 rounded-full border border-white/10 px-2 py-0.5">
                               <Users className="h-3 w-3 text-emerald-200" />
-                              {entryUnknown.length} unknown
+                              {entryUnknownFaces.length} unknown
                             </span>
                           )}
                           {entry.face_last_seen_iso && (
@@ -464,32 +656,6 @@ export function FaceDetectionLog({
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/10 bg-gradient-to-b from-black/15 via-emerald-900/30 to-black/25 p-4">
-          <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-white">
-            <AlertTriangle className="h-4 w-4 text-amber-200" />
-            Quick read for the new face payload
-          </div>
-          <ul className="space-y-3 text-sm text-white/80">
-            <li className="flex items-start gap-2">
-              <span className="mt-1 inline-block h-2 w-2 rounded-full bg-amber-200 shadow-[0_0_0_6px_rgba(240,199,94,0.18)]" />
-              <span>
-                <code className="rounded bg-black/20 px-1 py-0.5 text-[11px]">recognized_faces</code> carries one object per face with <code className="rounded bg-black/20 px-1 py-0.5 text-[11px]">label</code>, <code className="rounded bg-black/20 px-1 py-0.5 text-[11px]">similarity</code>, <code className="rounded bg-black/20 px-1 py-0.5 text-[11px]">known</code>, and bounding box <code className="rounded bg-black/20 px-1 py-0.5 text-[11px]">bbox</code>.
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="mt-1 inline-block h-2 w-2 rounded-full bg-emerald-200 shadow-[0_0_0_6px_rgba(16,185,129,0.18)]" />
-              <span>
-                <code className="rounded bg-black/20 px-1 py-0.5 text-[11px]">face_detected</code> / <code className="rounded bg-black/20 px-1 py-0.5 text-[11px]">known_face</code> is true when a known face is present; <code className="rounded bg-black/20 px-1 py-0.5 text-[11px]">faces_count</code> reflects total faces (known + unknown).
-              </span>
-            </li>
-            <li className="flex items-start gap-2">
-              <span className="mt-1 inline-block h-2 w-2 rounded-full bg-rose-200 shadow-[0_0_0_6px_rgba(244,114,182,0.18)]" />
-              <span>
-                <code className="rounded bg-black/20 px-1 py-0.5 text-[11px]">face_last_seen_iso</code> is emitted when a known face is present in the frame; timestamps in the list above are straight from the Firebase snapshots for auditability.
-              </span>
-            </li>
-          </ul>
-        </div>
       </CardContent>
     </Card>
   );

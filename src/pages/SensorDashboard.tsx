@@ -3,7 +3,7 @@ import { Button } from "../components/ui/button";
 import {
   Sun,
   Volume2,
-  CloudAlert,
+  Flame as FlameIcon,
   Ruler,
   Activity,
   RefreshCw,
@@ -24,12 +24,12 @@ import { useSensorStream } from "../hooks/useSensorStream";
 import {
   BRIGHTNESS,
   SOUND,
-  GAS,
+  FLAME,
   ULTRA,
   MPU6050,
   bandColor,
   bandLabel,
-  bandColorForStr,
+  flameState,
 } from "../config/sensorConfig.ts";
 
 export default function SensorDashboard() {
@@ -39,19 +39,30 @@ export default function SensorDashboard() {
 
   const brightnessPct = latestEsp?.brightness_pct ?? 0;
   const soundDb = latestEsp?.sound_db ?? 0;
-  const gasVal = latestEsp?.gas ?? "";
+  const flameDetected =
+    latestEsp?.flame_detected ?? latestEsp?.gas_detected ?? undefined;
+  const flameReading =
+    latestEsp?.flame ??
+    latestEsp?.gas ??
+    (flameDetected === false ? "No flame" : undefined);
   const distance = latestRpi?.distance_cm ?? 0;
   const accel = latestRpi?.accel_mag ?? 0;
 
   const brightnessColor = bandColor(BRIGHTNESS.bands, brightnessPct);
   const soundColor = bandColor(SOUND.bands, soundDb);
-  const gasColor = bandColorForStr(GAS.bands, gasVal);
+  const flamePalette = flameState(flameDetected);
   const ultraColor = bandColor(ULTRA.bands, distance);
   const mpuColor = bandColor(MPU6050.bands, accel);
+  const flameValue =
+    flameDetected === true
+      ? "Flame detected"
+      : flameDetected === false
+      ? "No flame"
+      : "Waiting…";
 
   const brightnessNote = BRIGHTNESS.recommend(brightnessPct);
   const soundNote = SOUND.recommend(soundDb);
-  const gasNote = GAS.recommend(gasVal);
+  const flameNote = FLAME.recommend(flameDetected, flameReading);
   const ultraNote = ULTRA.recommend(distance);
   const mpuNote = MPU6050.recommend(accel);
 
@@ -195,11 +206,12 @@ export default function SensorDashboard() {
               transition={{ delay: 0.1 }}
             >
               <DigitalCard
-                title="Gas Sensor"
-                icon={<CloudAlert className="h-4 w-4" />}
-                value={gasVal}
-                bgColor={gasColor}
-                note={gasNote}
+                title="Flame Sensor"
+                icon={<FlameIcon className="h-4 w-4" />}
+                value={flameReading ?? flameValue}
+                badge={flamePalette.label}
+                bgColor={flamePalette.color}
+                note={flameNote}
               />
             </motion.div>
             <motion.div

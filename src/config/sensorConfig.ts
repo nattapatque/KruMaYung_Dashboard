@@ -98,6 +98,40 @@ export const GAS = {
   },
 };
 
+export const FLAME = {
+  states: {
+    safe: {
+      label: "No flame",
+      color: "bg-emerald-600/60 text-emerald-50 border border-emerald-200/40",
+    },
+    alert: {
+      label: "Flame detected",
+      color: "bg-rose-600/75 text-rose-50 border border-rose-200/40",
+    },
+    idle: {
+      label: "Waiting for data",
+      color: "bg-white/10 text-white border border-white/20",
+    },
+  },
+  recommend(detected?: boolean, flame?: string) {
+    if (detected === true) {
+      return "Flame detected — check the source immediately.";
+    }
+    if (detected === false) {
+      return flame
+        ? `Reading: ${flame}`
+        : "No flame reported by KY-026.";
+    }
+    return "Awaiting flame sensor telemetry.";
+  },
+};
+
+export function flameState(detected?: boolean) {
+  if (detected === true) return FLAME.states.alert;
+  if (detected === false) return FLAME.states.safe;
+  return FLAME.states.idle;
+}
+
 export const MPU6050 = {
   bands: [
     {

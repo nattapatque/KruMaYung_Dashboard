@@ -43,7 +43,12 @@ const Graph = ({
   const filteredData = filter === "all" ? data : data.slice(-Number(filter));
 
   const chartData = {
-    labels: filteredData.map((d) => new Date(d.t).toLocaleTimeString()),
+    labels: filteredData.map((d) =>
+      new Date(d.t).toLocaleTimeString([], {
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+    ),
     datasets: [
       {
         label,
@@ -83,8 +88,10 @@ const Graph = ({
             grid: { color: "rgba(255,255,255,0.08)" },
             ticks: {
               color: "rgba(236,244,239,0.75)",
-              maxRotation: 0,
+              maxTicksLimit: 6,
               autoSkip: true,
+              autoSkipPadding: 16,
+              maxRotation: 0,
             },
           },
           y: {
