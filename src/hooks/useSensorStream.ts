@@ -65,7 +65,15 @@ export function useSensorStream(deviceId: string, live = true) {
           "on",
           "present",
         ];
-        const falseTokens = ["false", "0", "no", "n", "clear", "absent", "none"];
+        const falseTokens = [
+          "false",
+          "0",
+          "no",
+          "n",
+          "clear",
+          "absent",
+          "none",
+        ];
         if (falseTokens.includes(normalized)) return false;
         if (trueTokens.includes(normalized)) return true;
         if (opts?.falseHints?.some((re) => re.test(normalized))) return false;
@@ -134,8 +142,7 @@ export function useSensorStream(deviceId: string, live = true) {
           const hasBBox = Object.values(bboxCandidate).every(
             (v) => typeof v === "number"
           );
-          const label =
-            typeof face.label === "string" ? face.label : "unknown";
+          const label = typeof face.label === "string" ? face.label : "unknown";
           const similarity = parseNumber(face.similarity);
           const known =
             typeof face.known === "boolean"
@@ -203,12 +210,33 @@ export function useSensorStream(deviceId: string, live = true) {
 
             const accelSrc =
               rec?.accel_mag ?? rec?.rpi?.accel_mag ?? rec?.esp?.accel_mag;
-            const accel =
+
+            const rawAccel =
               typeof accelSrc === "number" ? accelSrc : Number(accelSrc) || 1;
 
+            // 2. กำหนดค่า x ตามโจทย์
+            const x = rawAccel - 1;
+
+            // 3. คำนวณตามสูตร y(x)
+            // ค่าคงที่ในสูตร: 0.02, 0.17, และตัวคูณ 8
+            const minVal = 0.02;
+            const maxRef = 0.17;
+            const k = 8;
+
+            // ส่วนหาร (Denominator): e^(8 * (0.17 - 0.02)) - 1
+            // คำนวณเตรียมไว้ (มีค่าประมาณ 2.32)
+            const denominator = Math.exp(k * (maxRef - minVal)) - 1;
+
+            // ส่วนเศษ (Numerator): e^(8 * (x - 0.02)) - 1
+            const numerator = Math.exp(k * (x - minVal)) - 1;
+
+            // รวมสูตร: 0.02 + (0.98 * (เศษ / ส่วน))
+            const accel = (minVal + (1 - minVal) * (numerator / denominator))+ 1;
+
             const soundSrc = rec?.sound_db ?? rec?.esp?.sound_db;
-            const sound_db =
+            const rawSound =
               typeof soundSrc === "number" ? soundSrc : Number(soundSrc) || 0;
+            const sound_db = Math.max(0, rawSound - 20);
 
             const distanceSrc =
               rec?.distance_cm ??
@@ -220,8 +248,7 @@ export function useSensorStream(deviceId: string, live = true) {
                 : Number(distanceSrc) || 0;
 
             const flameRaw = rec?.flame ?? rec?.esp?.flame;
-            const flame =
-              typeof flameRaw === "string" ? flameRaw : undefined;
+            const flame = typeof flameRaw === "string" ? flameRaw : undefined;
             const flameDetected = parseFlameBool(
               rec?.flame_detected ?? rec?.esp?.flame_detected,
               flame
@@ -245,12 +272,8 @@ export function useSensorStream(deviceId: string, live = true) {
                   rec?.rpi?.face_status_debounced
               ) ?? undefined;
             const faceDetected =
-              parseFaceBool(
-                rec?.face_detected ?? rec?.rpi?.face_detected
-              ) ??
-              (face_status
-                ? face_status === "face_detected"
-                : null);
+              parseFaceBool(rec?.face_detected ?? rec?.rpi?.face_detected) ??
+              (face_status ? face_status === "face_detected" : null);
             const knownFace = parseFaceBool(
               rec?.known_face ?? rec?.rpi?.known_face
             );
